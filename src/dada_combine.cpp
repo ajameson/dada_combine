@@ -58,12 +58,12 @@ uint64_t combine_uint64(char * key, char * lower_hdr, char * upper_hdr, char * o
 
 void get_double(char * key, char * lower_hdr, char * upper_hdr, double * lower_val, double * upper_val)
 {
-  if (ascii_header_get(lower_hdr, key, "%f", &lower_val) != 1)
+  if (ascii_header_get(lower_hdr, key, "%f", lower_val) != 1)
   {
     std::cerr << "dada_combine: could not read " << key << " from lower_hdr" << std::endl;
     assert(false);
   }
-  if (ascii_header_get(upper_hdr, key, "%f", &upper_val) != 1)
+  if (ascii_header_get(upper_hdr, key, "%f", upper_val) != 1)
   {
     std::cerr << "dada_combine: could not read " << key << " from upper_hdr" << std::endl;
     assert(false);
@@ -173,6 +173,16 @@ int main(int argc, char *argv[])
   assert(bytes_read == lower_hdr_size);
   bytes_read = ::read(upper_fd, upper_hdr, upper_hdr_size);
   assert(bytes_read == upper_hdr_size);
+
+  if (verbose)
+  {
+    std::cerr << "=== LOWER HEADER START ===" << std::endl;
+    std::cerr << lower_hdr << std::endl;
+    std::cerr << "=== LOWER HEADER END===" << std::endl;
+    std::cerr << "=== UPPER HEADER START ===" << std::endl;
+    std::cerr << upper_hdr << std::endl;
+    std::cerr << "=== UPPER HEADER END===" << std::endl;
+  }
 
   // memcpy the lower header to the output, then modify
   memcpy(output_hdr, lower_hdr, lower_hdr_size);

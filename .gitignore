@@ -74,6 +74,7 @@ config/ltsugar.m4
 config/ltversion.m4
 config/lt~obsolete.m4
 config.sub
+config/compile
 config/depcomp
 config/install-sh
 config/ltmain.sh
@@ -83,3 +84,4 @@ depcomp
 install-sh
 ltmain.sh
 missing
+configure~

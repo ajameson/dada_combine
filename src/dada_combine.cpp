@@ -16,7 +16,13 @@
 
 void usage()
 {
-  std::cout << "dada_combine lower-input-file upper-input-file output-file" << std::endl;
+  std::cout << "dada_combine [options] lower-input-file upper-input-file output-file" << std::endl;
+  std::cout << "Combines 2 half-band baseband voltage PSRDADA files from PTUSE." << std::endl;
+  std::cout << "  lower-input-file   input PSRDADA file from lower half-band" << std::endl;
+  std::cout << "  upper-input-file   input PSRDADA file from upper half-band" << std::endl;
+  std::cout << "  output-file        combined output PSRDADA file to create" << std::endl;
+  std::cout << "  -h                 display this help text" << std::endl;
+  std::cout << "  -v                 increase the verbosity of this application" << std::endl;
 }
 
 uint64_t combine_uint64(char * key, char * lower_hdr, char * upper_hdr, char * output_hdr)
@@ -101,6 +107,7 @@ int main(int argc, char *argv[])
   if (num_args != 3)
   {
     std::cerr << "ERROR: 3 command line argument required" << std::endl;
+    usage();
     return EXIT_FAILURE;
   }
 
@@ -180,11 +187,30 @@ int main(int argc, char *argv[])
   get_double("FREQ", lower_hdr, upper_hdr, &lower_freq, &upper_freq);
   double output_freq = (lower_freq + upper_freq) / 2;
   set_double("FREQ", output_hdr, output_freq);
-
   double lower_bw{0}, upper_bw{0};
   get_double("BW", lower_hdr, upper_hdr, &lower_bw, &upper_bw);
   double output_bw = lower_bw + upper_bw;
   set_double("BW", output_hdr, output_bw);
+
+  if (upper_freq <= lower_freq)
+  {
+    std::cerr << "upper_freq [" << upper_freq << "] was <= lower_freq [" << lower_freq << "]" << std::endl;
+    return EXIT_FAILURE; 
+  }
+
+  double diff_freq = upper_freq - lower_freq;
+  if (abs(diff_freq - lower_bw) > 0.001)
+  {
+    std::cerr << "upper_freq-lower_freq [" << diff_freq << "] was != lower_bw [" << lower_bw << "]" << std::endl;
+    return EXIT_FAILURE; 
+  }
+
+  double diff_bw = upper_bw - lower_bw;
+  if (abs(diff_bw) > 0.001)
+  {
+    std::cerr << "upper_bw - lower_bw [" << diff_bw << "] was != 0" << std::endl;
+    return EXIT_FAILURE; 
+  }
 
   size_t data_size = lower_size - lower_hdr_size;
   size_t output_data_size = output_resolution * 2;

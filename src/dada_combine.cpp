@@ -16,11 +16,11 @@
 
 void usage()
 {
-  std::cout << "dada_combine [options] lower-input-file upper-input-file output-file" << std::endl;
+  std::cout << "dada_combine [options] lower-input-file upper-input-file output-dir" << std::endl;
   std::cout << "Combines 2 half-band baseband voltage PSRDADA files from PTUSE." << std::endl;
   std::cout << "  lower-input-file   input PSRDADA file from lower half-band" << std::endl;
   std::cout << "  upper-input-file   input PSRDADA file from upper half-band" << std::endl;
-  std::cout << "  output-file        combined output PSRDADA file to create" << std::endl;
+  std::cout << "  output-dir         directory to which the combined output PSRDADA file will be written" << std::endl;
   std::cout << "  -h                 display this help text" << std::endl;
   std::cout << "  -v                 increase the verbosity of this application" << std::endl;
 }
@@ -58,12 +58,12 @@ uint64_t combine_uint64(char * key, char * lower_hdr, char * upper_hdr, char * o
 
 void get_double(char * key, char * lower_hdr, char * upper_hdr, double * lower_val, double * upper_val)
 {
-  if (ascii_header_get(lower_hdr, key, "%f", lower_val) != 1)
+  if (ascii_header_get(lower_hdr, key, "%lf", lower_val) != 1)
   {
     std::cerr << "dada_combine: could not read " << key << " from lower_hdr" << std::endl;
     assert(false);
   }
-  if (ascii_header_get(upper_hdr, key, "%f", upper_val) != 1)
+  if (ascii_header_get(upper_hdr, key, "%lf", upper_val) != 1)
   {
     std::cerr << "dada_combine: could not read " << key << " from upper_hdr" << std::endl;
     assert(false);
@@ -72,7 +72,7 @@ void get_double(char * key, char * lower_hdr, char * upper_hdr, double * lower_v
 
 void set_double(char * key, char * output_hdr, double output_val)
 {
-  if (ascii_header_set(output_hdr, key, "%f", output_val) < 0)
+  if (ascii_header_set(output_hdr, key, "%lf", output_val) < 0)
   {
     std::cerr << "dada_combine: could not write" << key << "=" << output_val << " to output_hdr" << std::endl;
     assert(false);
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 
   std::string lower = std::string(argv[optind + 0]);
   std::string upper = std::string(argv[optind + 1]);
-  std::string output = std::string(argv[optind + 2]);
+  std::string output_dir = std::string(argv[optind + 2]);
 
   struct stat statistics;
   if (stat(lower.c_str(), &statistics) < 0)
@@ -177,10 +177,10 @@ int main(int argc, char *argv[])
   if (verbose)
   {
     std::cerr << "=== LOWER HEADER START ===" << std::endl;
-    std::cerr << lower_hdr << std::endl;
+    std::cerr << lower_hdr;
     std::cerr << "=== LOWER HEADER END===" << std::endl;
     std::cerr << "=== UPPER HEADER START ===" << std::endl;
-    std::cerr << upper_hdr << std::endl;
+    std::cerr << upper_hdr;
     std::cerr << "=== UPPER HEADER END===" << std::endl;
   }
 
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
   memcpy(output_hdr, lower_hdr, lower_hdr_size);
 
   uint64_t output_resolution = combine_uint64("RESOLUTION", lower_hdr, upper_hdr, output_hdr);
-  combine_uint64("OBS_OFFSET", lower_hdr, upper_hdr, output_hdr);
+  uint64_t output_obs_offset = combine_uint64("OBS_OFFSET", lower_hdr, upper_hdr, output_hdr);
   combine_uint64("NCHAN", lower_hdr, upper_hdr, output_hdr);
   combine_uint64("BYTES_PER_SECOND", lower_hdr, upper_hdr, output_hdr);
   combine_uint64("FILE_SIZE", lower_hdr, upper_hdr, output_hdr);
@@ -201,6 +201,13 @@ int main(int argc, char *argv[])
   get_double("BW", lower_hdr, upper_hdr, &lower_bw, &upper_bw);
   double output_bw = lower_bw + upper_bw;
   set_double("BW", output_hdr, output_bw);
+
+  if (verbose)
+  {
+    std::cerr << "=== OUTPUT HEADER START ===" << std::endl;
+    std::cerr << output_hdr;
+    std::cerr << "=== OUTPUT HEADER END===" << std::endl;
+  }
 
   if (upper_freq <= lower_freq)
   {
@@ -230,8 +237,33 @@ int main(int argc, char *argv[])
     return EXIT_FAILURE;
   }
 
-  // open the output file
-  int output_fd = open(output.c_str(), rw_flags, perms);
+  // all checks pass, prepare the output file name
+
+  /* utc start, as defined by UTC_START attribute */
+  char utc_start[64] = "";
+  if (ascii_header_get(lower_hdr, "UTC_START", "%s", utc_start) != 1)
+  {
+    std::cerr << "dada_combine: could not read UTC_START from lower_hdr" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  uint32_t file_number{0};
+  if (ascii_header_get(lower_hdr, "FILE_NUMBER", "%u", &file_number) != 1)
+  {
+    std::cerr << "dada_combine: could not read FILE_NUMBER from lower_hdr" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  // create the output file name
+  char output_file_name[FILENAME_MAX];
+  snprintf (output_file_name, FILENAME_MAX, "%s/%s_%016"PRIu64".%06u.dada", 
+            output_dir.c_str(), utc_start, output_obs_offset, file_number);
+  int output_fd = open(output_file_name, rw_flags, perms);
+  if (output_fd <= 0)
+  {
+    std::cerr << "dada_combine: failed to open output_file_name=" << output_file_name << " for writing" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   size_t bytes_written = ::write(output_fd, output_hdr, output_hdr_size);
   assert(bytes_written == output_hdr_size);

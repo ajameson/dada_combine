@@ -50,6 +50,7 @@ AC_FUNC_VPRINTF
 SWIN_LIB_PSRDADA
 
 AC_CONFIG_FILES([Makefile
+  scripts/Makefile
   src/Makefile])
 
 AC_OUTPUT
